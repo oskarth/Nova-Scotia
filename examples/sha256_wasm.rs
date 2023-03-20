@@ -16,14 +16,8 @@ fn main() {
     let r1cs = load_r1cs(&FileLocation::PathBuf(circuit_file));
     let witness_generator_wasm = root.join("examples/sha256/circom/sha256_test_js/sha256_test.wasm");
 
-    // From input_64.json
-    // {"in": ["0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0","0"], "hash": ["245","165","253","66","209","106","32","48","39","152","239","110","211","9","151","155","67","0","61","35","32","217","240","232","234","152","49","169","39","89","251","75"]}
     let in_vector = vec![0; 64];
     let hash_vector = vec![245, 165, 253, 66, 209, 106, 32, 48, 39, 152, 239, 110, 211, 9, 151, 155, 67, 0, 61, 35, 32, 217, 240, 232, 234, 152, 49, 169, 39, 89, 251, 75];
-
-    // How to think about iteration count here?
-    // TODO: Currently getting error "too many values for input signal step_in",
-    // Not defining this so some assumption being made?
 
     let mut private_inputs = Vec::new();
     for _i in 0..iteration_count {
@@ -35,7 +29,7 @@ fn main() {
 
     // println!("Private inputs: {:?}", private_inputs);
 
-    let start_public_input = vec![];
+    let start_public_input = vec![F1::from(10), F1::from(10)];
 
     let pp = create_public_params(r1cs.clone());
 
@@ -59,6 +53,7 @@ fn main() {
 
     println!("Creating a RecursiveSNARK...");
     let start = Instant::now();
+
     let recursive_snark = create_recursive_circuit(
         FileLocation::PathBuf(witness_generator_wasm),
         r1cs,

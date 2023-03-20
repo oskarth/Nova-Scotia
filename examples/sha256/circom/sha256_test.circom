@@ -22,7 +22,8 @@ pragma circom 2.0.3;
 
 include "sha256_bytes.circom";
 
-template Main(N) {
+template Sha256Test(N) {
+
     signal input in[N];
     signal input hash[32];
     signal output out[32];
@@ -42,7 +43,33 @@ template Main(N) {
     log("finish ================");
 }
 
+template Main(N) {
+
+    signal input step_in[2];
+    signal input in[N];
+    signal input hash[32];
+
+    signal output step_out[2];
+
+    component sha256test = Sha256Test(N);
+
+    // XXX Dummy constraint
+    step_in[0] === step_in[1];
+
+    for (var i = 0; i < N; i++) {
+        sha256test.in[i] <== in[i];
+    }
+
+    for (var i = 0; i < 32; i++) {
+        sha256test.hash[i] <== hash[i];
+    }
+
+    // TODO Replace this with output of hash
+    // out <== sha256test.out;
+    // XXX Dummy constraint
+    step_out[0] <== step_in[0];
+    step_out[1] <== step_in[1];
+}
+
 // render this file before compilation
-component main = Main(64);
-
-
+component main { public [step_in] }= Main(64);
