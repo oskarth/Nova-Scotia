@@ -72,7 +72,7 @@ struct CircomInput {
 pub fn create_recursive_circuit(
     witness_generator_file: FileLocation,
     r1cs: R1CS<F1>,
-    private_inputs: Vec<HashMap<String, Value>>,
+    private_inputs: Vec<HashMap<String, Value>>, // Why are private inputs a hashmap? but public input is Vec<F1>
     start_public_input: Vec<F1>,
     pp: &PublicParams<G1, G2, C1, C2>,
 ) -> Result<RecursiveSNARK<G1, G2, C1, C2>, std::io::Error> {
@@ -80,6 +80,8 @@ pub fn create_recursive_circuit(
     let witness_generator_output = root.join("circom_witness.wtns");
 
     let iteration_count = private_inputs.len();
+
+    println!("start_public_input: {:?}", start_public_input);
 
     let start_public_input_hex = start_public_input
         .iter()
@@ -102,7 +104,12 @@ pub fn create_recursive_circuit(
             extra: private_inputs[i].clone(),
         };
 
+
+        println!("stepin: {:?}", decimal_stringified_input);
+
         let input_json = serde_json::to_string(&input).unwrap();
+
+        println!("input: {:?}", input_json);
 
         let is_wasm = match &witness_generator_file {
             FileLocation::PathBuf(path) => path.extension().unwrap_or_default() == "wasm",

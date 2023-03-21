@@ -1,11 +1,16 @@
 use std::{collections::HashMap, env::current_dir, time::Instant};
 
+use ff::PrimeField;
 use ff::derive::bitvec::vec;
 use nova_scotia::{
     circom::reader::load_r1cs, create_public_params, create_recursive_circuit, FileLocation, F1,
     G2, S1, S2,
 };
+
+use num_bigint::BigInt;
+use num_traits::Num;
 use nova_snark::{traits::Group, CompressedSNARK};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 fn main() {
@@ -16,20 +21,36 @@ fn main() {
     let r1cs = load_r1cs(&FileLocation::PathBuf(circuit_file));
     let witness_generator_wasm = root.join("examples/sha256/circom/sha256_test_js/sha256_test.wasm");
 
-    let in_vector = vec![0; 64];
-    let hash_vector = vec![245, 165, 253, 66, 209, 106, 32, 48, 39, 152, 239, 110, 211, 9, 151, 155, 67, 0, 61, 35, 32, 217, 240, 232, 234, 152, 49, 169, 39, 89, 251, 75];
+    let in_vector = vec![0; 32];
+    let step_in_vector = vec![vec![0; 32], vec![102, 104, 122, 173, 248, 98, 189, 119, 108, 143, 193, 139, 142, 159, 142, 32, 8, 151, 20, 133, 110, 226, 51, 179, 144, 42, 89, 29, 13, 95, 41, 37]];
 
     let mut private_inputs = Vec::new();
     for _i in 0..iteration_count {
         let mut private_input = HashMap::new();
         private_input.insert("in".to_string(), json!(in_vector));
-        private_input.insert("hash".to_string(), json!(hash_vector));
         private_inputs.push(private_input);
     }
 
-    // println!("Private inputs: {:?}", private_inputs);
+    // TODO This should be different for each iteration
+    println!("Private inputs: {:?}", private_inputs);
 
-    let start_public_input = vec![F1::from(10), F1::from(10)];
+    // Why is format for private and public input different? This works eg
+    // private_input.insert("hash".to_string(), json!(["245","165","253","66","209","106","32","48","39","152","239","110","211","9","151","155","67","0","61","35","32","217","240","232","234","152","49","169","39","89","251","75"]));
+    // Currently input looks like:
+    // input: "{\"step_in\":[\"17372487044184224250689677241555343188839180614373144612130640154373167982884\",\"195393092410815735158515771507856022968006678455652277576436
+    // 44263387137250590\"],\"in\":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}"
+
+    // TODO Fix this
+    // For public input we want to have on form
+    // F1::from_str_vartime(&btc_blocks.prevBlockHash[0]).unwrap(),
+    // In circuit do we have to do use Num2Bits instead?
+    let first_val_intstr = "46320509353513273106582423493727320152202237096314791991810382902766530930981";
+    let second_val_intstr = "19539309241081573515851577150785602296800667845565227757643644263387137250590";
+
+    let start_public_input = vec![
+        F1::from_str_vartime(&first_val_intstr).unwrap(),
+        F1::from_str_vartime(&second_val_intstr).unwrap(),
+    ];
 
     let pp = create_public_params(r1cs.clone());
 
