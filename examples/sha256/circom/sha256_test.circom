@@ -43,33 +43,32 @@ template Sha256Test(N) {
     log("finish ================");
 }
 
-template Main(N) {
+template Main() {
 
-    signal input step_in[2];
-    signal input in[N];
-    signal input hash[32];
+    // Private input is the value to hash
+    signal input in[32];
 
-    signal output step_out[2];
+    // Public input is the input and then resulting hash
+    signal input step_in[2][32];
 
-    component sha256test = Sha256Test(N);
+    // Output is the hash of the previous step and expected hash of next step
+    signal output step_out[2][32];
 
-    // XXX Dummy constraint
-    step_in[0] === step_in[1];
+    // XXX: We want private input to be same as public input
+    in === step_in[0];
 
-    for (var i = 0; i < N; i++) {
-        sha256test.in[i] <== in[i];
-    }
+    // First output is the hash of the private input
+    component firstHasher = Sha256Test(32);
+    firstHasher.in <== step_in[0];
+    firstHasher.hash <== step_in[1]; // this line fails
+    step_out[0] <== firstHasher.out;
 
-    for (var i = 0; i < 32; i++) {
-        sha256test.hash[i] <== hash[i];
-    }
+    // Second output is the hash of the hash of the private input
+    component secondHasher = Sha256Bytes(32);
+    secondHasher.in <== step_in[1];
 
-    // TODO Replace this with output of hash
-    // out <== sha256test.out;
-    // XXX Dummy constraint
-    step_out[0] <== step_in[0];
-    step_out[1] <== step_in[1];
+    step_out[1] <== secondHasher.out;
 }
 
 // render this file before compilation
-component main { public [step_in] }= Main(64);
+component main { public [step_in] }= Main();
