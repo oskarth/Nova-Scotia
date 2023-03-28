@@ -1,3 +1,5 @@
+use ark_std::{end_timer, start_timer};
+
 use std::{
     collections::HashMap,
     env::current_dir,
@@ -137,6 +139,10 @@ pub fn create_recursive_circuit(
             .map(|&x| format!("{:?}", x).strip_prefix("0x").unwrap().to_string())
             .collect();
 
+        // Prove step
+        // Also check inside prove_step
+        let timer_create_proof_steps = start_timer!(|| "Create recursive step proof");
+
         let res = RecursiveSNARK::prove_step(
             &pp,
             recursive_snark,
@@ -147,7 +153,11 @@ pub fn create_recursive_circuit(
         );
         assert!(res.is_ok());
         recursive_snark = Some(res.unwrap());
+
+        end_timer!(timer_create_proof_steps);
+
     }
+
     fs::remove_file(witness_generator_output)?;
 
     let recursive_snark = recursive_snark.unwrap();
