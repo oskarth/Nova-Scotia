@@ -43,7 +43,7 @@ pub async fn generate_witness_browser(input_json_string: &str, wasm_file: &str) 
 
 #[cfg(target_family = "wasm")]
 /// load r1cs file by filename with autodetect encoding (bin or json)
-pub async fn load_r1cs(filename: &FileLocation) -> R1CS<<G1 as Group>::Scalar> {
+pub async fn load_r1cs<G: Group>(filename: &FileLocation) -> R1CS<G::Scalar> {
     let filename = match filename {
         FileLocation::PathBuf(_) => panic!("unreachable"),
         FileLocation::URL(path) => path,

@@ -120,7 +120,7 @@ fn read_map<R: Read>(mut reader: R, size: u64, header: &Header) -> Result<Vec<u6
     Ok(vec)
 }
 
-pub fn from_reader<R: Read + Seek>(mut reader: R) -> Result<R1CSFile<<G1 as Group>::Scalar>> {
+pub fn from_reader<G: Group, R: Read + Seek>(mut reader: R) -> Result<R1CSFile<G::Scalar>> {
     let mut magic = [0u8; 4];
     reader.read_exact(&mut magic)?;
     if magic != [0x72, 0x31, 0x63, 0x73] {
@@ -168,7 +168,7 @@ pub fn from_reader<R: Read + Seek>(mut reader: R) -> Result<R1CSFile<<G1 as Grou
     reader.seek(SeekFrom::Start(
         *section_offsets.get(&constraint_type).unwrap(),
     ))?;
-    let constraints = read_constraints::<&mut R, <G1 as Group>::Scalar>(
+    let constraints = read_constraints::<&mut R, G::Scalar>(
         &mut reader,
         *section_sizes.get(&constraint_type).unwrap(),
         &header,
