@@ -195,14 +195,13 @@ struct CircomInput {
 // }
 
 
-// TODO Do wasm version too
+// TODO Deal with splitting private input across two R1CS instances
 
 #[cfg(not(target_family = "wasm"))]
 pub fn create_recursive_circuit_alt(
     witness_generator_file: FileLocation,
     r1cs_primary: R1CS<F1>,
     r1cs_secondary: R1CS<F2>,
-    // XXX private input same?
     private_inputs: Vec<HashMap<String, Value>>,
     start_public_input_primary: Vec<F1>,
     start_public_input_secondary: Vec<F2>,
@@ -419,6 +418,153 @@ pub async fn create_recursive_circuit(
             circuit_secondary.clone(),
             start_public_input.clone(),
             z0_secondary.clone(),
+        );
+
+        assert!(res.is_ok());
+        recursive_snark = Some(res.unwrap());
+    }
+
+    let recursive_snark = recursive_snark.unwrap();
+
+    Ok(recursive_snark)
+}
+
+#[cfg(target_family = "wasm")]
+pub async fn create_recursive_circuit_alt(
+    witness_generator_file: FileLocation,
+    r1cs_primary: R1CS<F1>,
+    r1cs_secondary: R1CS<F2>,
+    private_inputs: Vec<HashMap<String, Value>>,
+    start_public_input_primary: Vec<F1>,
+    start_public_input_secondary: Vec<F2>,
+    pp: &PublicParams<G1, G2, C1, C2>,
+) -> Result<RecursiveSNARK<G1, G2, C1, C2>, std::io::Error> {
+    let iteration_count = private_inputs.len();
+
+    let mut circuit_iterations_primary = Vec::with_capacity(iteration_count);
+    let mut circuit_iterations_secondary = Vec::with_capacity(iteration_count);
+
+    let start_public_input_hex_primary = start_public_input_primary
+        .iter()
+        .map(|&x| format!("{:?}", x).strip_prefix("0x").unwrap().to_string())
+        .collect::<Vec<String>>();
+    let mut current_public_input_primary = start_public_input_hex_primary.clone();
+
+    let start_public_input_hex_secondary = start_public_input_secondary
+        .iter()
+        .map(|&x| format!("{:?}", x).strip_prefix("0x").unwrap().to_string())
+        .collect::<Vec<String>>();
+    let mut current_public_input_secondary = start_public_input_hex_secondary.clone();
+
+    for i in 0..iteration_count {
+        let decimal_stringified_input_primary: Vec<String> = current_public_input_primary
+            .iter()
+            .map(|x| BigInt::from_str_radix(x, 16).unwrap().to_str_radix(10))
+            .collect();
+
+        // FIXME We ignore private input for now, this should be split or otherwise instrumented
+        let input_primary = CircomInput {
+            step_in: decimal_stringified_input_primary.clone(),
+            extra: private_inputs[i].clone(),
+        };
+
+        let input_json_primary = serde_json::to_string(&input_primary).unwrap();
+
+        let decimal_stringified_input_secondary: Vec<String> = current_public_input_secondary
+        .iter()
+        .map(|x| BigInt::from_str_radix(x, 16).unwrap().to_str_radix(10))
+        .collect();
+
+        let input_secondary = CircomInput {
+            step_in: decimal_stringified_input_secondary.clone(),
+            extra: private_inputs[i].clone(),
+        };
+
+        let input_json_secondary = serde_json::to_string(&input_secondary).unwrap();
+
+        let is_wasm = match &witness_generator_file {
+            FileLocation::PathBuf(path) => path.extension().unwrap_or_default() == "wasm",
+            FileLocation::URL(_) => true,
+        };
+
+        // Primary circuit
+        let witness_primary = if is_wasm {
+            generate_witness_from_wasm::<<G1 as Group>::Scalar>(
+                &witness_generator_file,
+                &input_json_primary,
+                Path::new(""),
+            )
+            .await
+        } else {
+            let witness_generator_file = match &witness_generator_file {
+                FileLocation::PathBuf(path) => path,
+                FileLocation::URL(_) => panic!("unreachable"),
+            };
+            generate_witness_from_bin::<<G1 as Group>::Scalar>(
+                &witness_generator_file,
+                &input_json_primary,
+                Path::new(""),
+            )
+        };
+        let circuit_primary = CircomCircuit {
+            r1cs: r1cs_primary.clone(),
+            witness: Some(witness_primary),
+        };
+        let current_public_output_primary = circuit_primary.get_public_outputs();
+
+        circuit_iterations_primary.push(circuit_primary);
+        current_public_input_primary = current_public_output_primary
+            .iter()
+            .map(|&x| format!("{:?}", x).strip_prefix("0x").unwrap().to_string())
+            .collect();
+
+        // Secondary circuit
+        let witness_secondary = if is_wasm {
+            generate_witness_from_wasm::<<G2 as Group>::Scalar>(
+                &witness_generator_file,
+                &input_json_secondary,
+                Path::new(""),
+            )
+            .await
+        } else {
+            let witness_generator_file = match &witness_generator_file {
+                FileLocation::PathBuf(path) => path,
+                FileLocation::URL(_) => panic!("unreachable"),
+            };
+            generate_witness_from_bin::<<G2 as Group>::Scalar>(
+                &witness_generator_file,
+                &input_json_secondary,
+                Path::new(""),
+            )
+        };
+        let circuit_secondary = CircomCircuit {
+            r1cs: r1cs_secondary.clone(),
+            witness: Some(witness_secondary),
+        };
+        let current_public_output_secondary = circuit_secondary.get_public_outputs();
+
+        circuit_iterations_secondary.push(circuit_secondary);
+        current_public_input_secondary = current_public_output_secondary
+            .iter()
+            .map(|&x| format!("{:?}", x).strip_prefix("0x").unwrap().to_string())
+            .collect();
+
+    }
+
+    // Done above
+    //let circuit_secondary = TrivialTestCircuit::default();
+    //let z0_secondary = vec![<G2 as Group>::Scalar::zero()];
+
+    let mut recursive_snark: Option<RecursiveSNARK<G1, G2, C1, C2>> = None;
+
+    for i in 0..iteration_count {
+        let res = RecursiveSNARK::prove_step(
+            &pp,
+            recursive_snark,
+            circuit_iterations_primary[i].clone(),
+            circuit_iterations_secondary[i].clone(),
+            start_public_input_primary.clone(),
+            start_public_input_secondary.clone(),
         );
 
         assert!(res.is_ok());
